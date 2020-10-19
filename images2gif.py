@@ -119,21 +119,26 @@ def checkImages(images):
     return images2
 
 
+# def intToBin(i):
+#     """ Integer to two bytes """
+#     # devide in two parts (bytes)
+#     i1 = i % 256
+#     i2 = int( i/256)
+#     # make string (little endian)
+#     return chr(i1) + chr(i2)
+
+
 def intToBin(i):
     """ Integer to two bytes """
-    # devide in two parts (bytes)
-    i1 = i % 256
-    i2 = int( i/256)
     # make string (little endian)
-    return chr(i1) + chr(i2)
-
+    return i.to_bytes(2, byteorder='little')
 
 def getheaderAnim(im):
     """ Animation header. To replace the getheader()[0] """
-    bb = "GIF89a"
+    bb = b'GIF89a'
     bb += intToBin(im.size[0])
     bb += intToBin(im.size[1])
-    bb += "\x87\x00\x00"
+    bb += b'\x87\x00\x00'
     return bb
 
 
@@ -145,12 +150,12 @@ def getImageDescriptor(im):
     
     Written by Ant1 on 2010-08-22
     """
-    bb = '\x2C' # Image separator,
+    bb = b'\x2C' # Image separator,
     bb += intToBin( 0 ) # Left position
     bb += intToBin( 0 ) # Top position
     bb += intToBin( im.size[0] ) # image width
     bb += intToBin( im.size[1] ) # image height
-    bb += '\x87' # packed field : local color table flag1, interlace0, sorted table0, reserved00, lct size111=7=2^(7+1)=256.
+    bb += b'\x87' # packed field : local color table flag1, interlace0, sorted table0, reserved00, lct size111=7=2^(7+1)=256.
     # LZW minimum size code now comes later, begining of [image data] blocks
     return bb
 
@@ -161,32 +166,30 @@ def getAppExt(loops=float(0)):
     """ Application extention. Part that specifies amount of loops. 
     If loops is inf, it goes on infinitely.
     """
-    if loops == 0:
+    if loops == 0 or loops == float('inf'):
         loops = 2**16-1
         #bb = "" # application extension should not be used
                 # (the extension interprets zero loops
                 # to mean an infinite number of loops)
                 # Mmm, does not seem to work
-    if True:
-        bb = "\x21\xFF\x0B"  # application extension
-        bb += "NETSCAPE2.0"
-        bb += "\x03\x01"
-#        if loops == float('inf'):
-        if loops == float(0):
-            loops = 2**16-1
+    bb = b''
+    if loops != 1:
+        bb += b'\x21\xFF\x0B'  # application extension
+        bb += b'NETSCAPE2.0'
+        bb += b'\x03\x01'
         bb += intToBin(loops)
-        bb += '\x00'  # end
+        bb += b'\x00'  # end
     return bb
 
 
 def getGraphicsControlExt(duration=0.1):
     """ Graphics Control Extension. A sort of header at the start of
     each image. Specifies transparancy and duration. """
-    bb = '\x21\xF9\x04'
-    bb += '\x08'  # no transparancy
+    bb = b'\x21\xF9\x04'
+    bb += b'\x08'  # no transparancy
     bb += intToBin( int(duration*100) ) # in 100th of seconds
-    bb += '\x00'  # no transparant color
-    bb += '\x00'  # end
+    bb += b'\x00'  # no transparant color
+    bb += b'\x00'  # end
     return bb
 
 
@@ -197,7 +200,7 @@ def _writeGifToFile(fp, images, durations, loops):
     # Obtain palette for all images and count each occurance
     palettes, occur = [], []
     for im in images: 
-		palettes.append(im.palette.getdata()[1])
+        palettes.append(im.palette.getdata()[1])
     #   palettes.append( getheader(im)[1] ) # following suggestion at http://stackoverflow.com/questions/19149643/error-in-images2gif-py-with-globalpalette
     for palette in palettes: 
         occur.append( palettes.count( palette ) )
@@ -235,7 +238,7 @@ def _writeGifToFile(fp, images, durations, loops):
             imdes, data = data[0], data[1:]       
             graphext = getGraphicsControlExt(durations[frames])
             # Make image descriptor suitable for using 256 local color palette
-            lid = getImageDescriptor(im) 
+            lid = getImageDescriptor(im)
             
             # Write local header
             if palette != globalPalette:
@@ -243,7 +246,7 @@ def _writeGifToFile(fp, images, durations, loops):
                 fp.write(graphext)
                 fp.write(lid) # write suitable image descriptor
                 fp.write(palette) # write local color table
-                fp.write('\x08') # LZW minimum size code
+                fp.write(b'\x08') # LZW minimum size code
             else:
                 # Use global color palette
                 fp.write(graphext)
@@ -256,7 +259,7 @@ def _writeGifToFile(fp, images, durations, loops):
         # Prepare for next round
         frames = frames + 1
     
-    fp.write(";")  # end gif
+    fp.write(b';')  # end gif
     return frames
 
 
@@ -546,9 +549,9 @@ class NeuQuant:
             bb = self.colormap[i,0];
             gg = self.colormap[i,1];
             rr = self.colormap[i,2];
-            out.write(rr if rgb else bb)
-            out.write(gg)
-            out.write(bb if rgb else rr)
+            outstream.write(rr if rgb else bb)
+            outstream.write(gg)
+            outstream.write(bb if rgb else rr)
         return self.NETSIZE
     
     def setUpArrays(self):
@@ -671,7 +674,7 @@ class NeuQuant:
         if rad <= 1:
             rad = 0
     
-        print "Beginning 1D learning: samplepixels =",samplepixels," rad =", rad
+        print("Beginning 1D learning: samplepixels =",samplepixels," rad =", rad)
     
         step = 0
         pos = 0
@@ -690,7 +693,7 @@ class NeuQuant:
             if i%100 == 99:
                 tmp = '\b'*len(printed_string)
                 printed_string = str((i+1)*100/samplepixels)+"%\n"
-                print tmp + printed_string,
+                print(tmp + printed_string)
             p = self.pixels[pos]
             r = (p >> 16) & 0xff
             g = (p >>  8) & 0xff
@@ -718,7 +721,7 @@ class NeuQuant:
                 rad = biasRadius >> self.RADIUSBIASSHIFT
                 if rad <= 1:
                     rad = 0
-        print "Finished 1D learning: final alpha =",(1.0*alpha)/self.INITALPHA,"!"
+        print ("Finished 1D learning: final alpha =",(1.0*alpha)/self.INITALPHA,"!")
     
     def fix(self):
         for i in range(self.NETSIZE):
@@ -783,7 +786,7 @@ class NeuQuant:
         if cKDTree:
             return self.quantize_with_scipy(image)
         else:
-            print 'Scipy not available, falling back to slower version.'
+            print('Scipy not available, falling back to slower version.')
             return self.quantize_without_scipy(image)
     
     
@@ -795,7 +798,7 @@ class NeuQuant:
         kdtree = cKDTree(self.colormap[:,:3],leafsize=10)
         result = kdtree.query(px2)
         colorindex = result[1]
-        print "Distance:", (result[0].sum()/(w*h))
+        print("Distance:", (result[0].sum()/(w*h)))
         px2[:] = self.colormap[colorindex,:3]
         
         return Image.fromarray(px).convert("RGB").quantize(palette=self.paletteImage())
@@ -819,7 +822,7 @@ class NeuQuant:
                 px[i,j,0],px[i,j,1],px[i,j,2] = val
         return Image.fromarray(px).convert("RGB").quantize(palette=self.paletteImage())
     
-    def convert(self, (r, g, b)):
+    def convert(self, r, g, b):
         i = self.inxsearch(r, g, b)
         return self.colormap[i,:3]
     

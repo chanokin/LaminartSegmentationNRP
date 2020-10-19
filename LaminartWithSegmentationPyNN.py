@@ -1,16 +1,31 @@
 # This file contains the setup of the neuronal network running the Husky experiment with neuronal image recognition
-import os, sys, numpy, matplotlib.pyplot as plt, nest
+import os, sys, numpy, matplotlib.pyplot as plt
+# import nest
+# import nest as sim
+import pynn_genn as sim
+
 from createFilters import createFilters, createPoolingConnectionsAndFilters
 from pyNN.connectors import Connector
 
+
+
 # Create a custom connector (use nest.Connect explicitly to go faster)
-class MyConnector(Connector):
-    def __init__(self, ST=None):
-        self.source = [x[0] for x in ST]
-        self.target = [x[1] for x in ST]
-    def connect(self, projection):
-        if len(self.source) > 0 and len(self.target) > 0:
-            nest.Connect([projection.pre.all_cells[s] for s in self.source], [projection.post.all_cells[t] for t in self.target], 'one_to_one', syn_spec=projection.nest_synapse_model)
+if (sim.__name__ == 'pynn_genn' or sim.__name__ == 'spinnaker'):
+    class MyConnector(sim.FromListConnector):
+        pass
+else:
+    class MyConnector(Connector):
+        def __init__(self, ST=None):
+            self.source = [x[0] for x in ST]
+            self.target = [x[1] for x in ST]
+
+        def connect(self, projection):
+            if len(self.source) > 0 and len(self.target) > 0:
+                nest.Connect(
+                    [projection.pre.all_cells[s] for s in self.source],
+                    [projection.post.all_cells[t] for t in self.target],
+                    'one_to_one', syn_spec=projection.nest_synapse_model)
+
 
 # Function that builds all the layers of the network and connect them according to the Laminart model, enhanced with segmentation ; returns the full network and all the connections
 def buildNetworkAndConnections(sim, ImageNumPixelRows, ImageNumPixelColumns, numOrientations, oriFilterSize, V1PoolSize, V2PoolSize, phi,
@@ -31,7 +46,7 @@ def buildNetworkAndConnections(sim, ImageNumPixelRows, ImageNumPixelColumns, num
     V1PoolingFilters, V1PoolingConnections1, V1PoolingConnections2 = createPoolingConnectionsAndFilters(numOrientations, VPoolSize=V1PoolSize, sigma2=4.0, Olambda=5, phi=phi)
     V2PoolingFilters, V2PoolingConnections1, V2PoolingConnections2 = createPoolingConnectionsAndFilters(numOrientations, VPoolSize=V2PoolSize, sigma2=26.0, Olambda=9, phi=phi)
 
-    OppositeOrientationIndex = list(numpy.roll(range(numOrientations), numOrientations/2))
+    OppositeOrientationIndex = list(numpy.roll(range(numOrientations), numOrientations//2))
     # For numOrientations = 2, orientation indexes = [vertical, horizontal] -> opposite orientation indexes = [horizontal, vertical]
     # For numOrientations = 4, orientation indexes = [ /, |, \, - ] -> opposite orientation indexes = [ \, -, \, | ]
     # For numOrientations = 8, [ /h, /, /v, |, \v, \, \h, - ] -> [ \v, \, \h, -, /h, /, /v, | ] ([h,v] = [more horizontal, more vertical])
@@ -140,35 +155,43 @@ def buildNetworkAndConnections(sim, ImageNumPixelRows, ImageNumPixelColumns, num
 
     oriFilterWeight = connections['LGN_ToV1Excite']
     for k in range(0, numOrientations):                          # Orientations
-        for i2 in range(-oriFilterSize/2, oriFilterSize/2):      # Filter rows
-            for j2 in range(-oriFilterSize/2, oriFilterSize/2):  # Filter columns
+        for i2 in range(-oriFilterSize//2, oriFilterSize//2):      # Filter rows
+            for j2 in range(-oriFilterSize//2, oriFilterSize//2):  # Filter columns
                 ST = []                                          # Source-Target vector containing indexes of neurons to connect within specific layers
                 ST2 = []                                         # Second Source-Target vector for another connection
-                for i in range(oriFilterSize/2, numPixelRows-oriFilterSize/2):         # Rows
-                    for j in range(oriFilterSize/2, numPixelColumns-oriFilterSize/2):  # Columns
+                for i in range(oriFilterSize//2, numPixelRows-oriFilterSize//2):         # Rows
+                    for j in range(oriFilterSize//2, numPixelColumns-oriFilterSize//2):  # Columns
                         if i+i2 >=0 and i+i2<ImageNumPixelRows and j+j2>=0 and j+j2<ImageNumPixelColumns:
                             # Dark inputs use reverse polarity filter
-                            if abs(filters1[k][i2+oriFilterSize/2][j2+oriFilterSize/2]) > 0.1:
+                            if abs(filters1[k][i2+oriFilterSize//2][j2+oriFilterSize//2]) > 0.1:
                                 ST.append(((i+i2)*ImageNumPixelColumns + (j+j2),
                                            k*numPixelRows*numPixelColumns + i*numPixelColumns + j))
-                            if abs(filters2[k][i2+oriFilterSize/2][j2+oriFilterSize/2]) > 0.1:
+                            if abs(filters2[k][i2+oriFilterSize//2][j2+oriFilterSize//2]) > 0.1:
                                 ST2.append(((i+i2)*ImageNumPixelColumns + (j+j2),
                                             k*numPixelRows*numPixelColumns + i*numPixelColumns + j))
 
                 if len(ST)>0:
                     # LGN -> Layer 6 and 4 (simple cells) connections (no connections at the edges, to avoid edge-effects) first polarity filter
-                    sim.Projection(LGNBright, V1Layer6P1, MyConnector(ST), sim.StaticSynapse(weight=oriFilterWeight*filters1[k][i2+oriFilterSize/2][j2+oriFilterSize/2]))
-                    sim.Projection(LGNDark,   V1Layer6P2, MyConnector(ST), sim.StaticSynapse(weight=oriFilterWeight*filters1[k][i2+oriFilterSize/2][j2+oriFilterSize/2]))
-                    sim.Projection(LGNBright, V1Layer4P1, MyConnector(ST), sim.StaticSynapse(weight=oriFilterWeight*filters1[k][i2+oriFilterSize/2][j2+oriFilterSize/2]))
-                    sim.Projection(LGNDark,   V1Layer4P2, MyConnector(ST), sim.StaticSynapse(weight=oriFilterWeight*filters1[k][i2+oriFilterSize/2][j2+oriFilterSize/2]))
+                    sim.Projection(LGNBright, V1Layer6P1, MyConnector(ST),
+                       sim.StaticSynapse(weight=oriFilterWeight*filters1[k][i2+oriFilterSize//2][j2+oriFilterSize//2]))
+                    sim.Projection(LGNDark,   V1Layer6P2, MyConnector(ST),
+                       sim.StaticSynapse(weight=oriFilterWeight*filters1[k][i2+oriFilterSize//2][j2+oriFilterSize//2]))
+                    sim.Projection(LGNBright, V1Layer4P1, MyConnector(ST),
+                       sim.StaticSynapse(weight=oriFilterWeight*filters1[k][i2+oriFilterSize//2][j2+oriFilterSize//2]))
+                    sim.Projection(LGNDark,   V1Layer4P2, MyConnector(ST),
+                       sim.StaticSynapse(weight=oriFilterWeight*filters1[k][i2+oriFilterSize//2][j2+oriFilterSize//2]))
                     synapseCount += 4*len(ST)
 
                 if len(ST2)>0:
                     # LGN -> Layer 6 and 4 (simple cells) connections (no connections at the edges, to avoid edge-effects) second polarity filter
-                    sim.Projection(LGNBright, V1Layer6P2, MyConnector(ST2), sim.StaticSynapse(weight=oriFilterWeight*filters2[k][i2+oriFilterSize/2][j2+oriFilterSize/2]))
-                    sim.Projection(LGNDark,   V1Layer6P1, MyConnector(ST2), sim.StaticSynapse(weight=oriFilterWeight*filters2[k][i2+oriFilterSize/2][j2+oriFilterSize/2]))
-                    sim.Projection(LGNBright, V1Layer4P2, MyConnector(ST2), sim.StaticSynapse(weight=oriFilterWeight*filters2[k][i2+oriFilterSize/2][j2+oriFilterSize/2]))
-                    sim.Projection(LGNDark,   V1Layer4P1, MyConnector(ST2), sim.StaticSynapse(weight=oriFilterWeight*filters2[k][i2+oriFilterSize/2][j2+oriFilterSize/2]))
+                    sim.Projection(LGNBright, V1Layer6P2, MyConnector(ST2),
+                       sim.StaticSynapse(weight=oriFilterWeight*filters2[k][i2+oriFilterSize//2][j2+oriFilterSize//2]))
+                    sim.Projection(LGNDark,   V1Layer6P1, MyConnector(ST2),
+                       sim.StaticSynapse(weight=oriFilterWeight*filters2[k][i2+oriFilterSize//2][j2+oriFilterSize//2]))
+                    sim.Projection(LGNBright, V1Layer4P2, MyConnector(ST2),
+                       sim.StaticSynapse(weight=oriFilterWeight*filters2[k][i2+oriFilterSize//2][j2+oriFilterSize//2]))
+                    sim.Projection(LGNDark,   V1Layer4P1, MyConnector(ST2),
+                       sim.StaticSynapse(weight=oriFilterWeight*filters2[k][i2+oriFilterSize//2][j2+oriFilterSize//2]))
                     synapseCount += 4*len(ST2)
 
     # Excitatory connection from same orientation and polarity 1, input from layer 6
@@ -188,8 +211,10 @@ def buildNetworkAndConnections(sim, ImageNumPixelRows, ImageNumPixelColumns, num
                                            k*numPixelRows*numPixelColumns + i*numPixelColumns + j))
 
     # Surround inhibition from layer 6 of same orientation and polarity
-    sim.Projection(V1Layer6P1, V1Layer4P1, MyConnector(ST), sim.StaticSynapse(weight=connections['V1_6To4Inhib']))
-    sim.Projection(V1Layer6P2, V1Layer4P2, MyConnector(ST), sim.StaticSynapse(weight=connections['V1_6To4Inhib']))
+    sim.Projection(V1Layer6P1, V1Layer4P1, MyConnector(ST),
+                   sim.StaticSynapse(weight=connections['V1_6To4Inhib']))
+    sim.Projection(V1Layer6P2, V1Layer4P2, MyConnector(ST),
+                   sim.StaticSynapse(weight=connections['V1_6To4Inhib']))
     synapseCount += 2*len(ST)
 
     sys.stdout.write('done. \nSetting up V1, Layers 23 and 6 (feedback)...')
@@ -209,22 +234,22 @@ def buildNetworkAndConnections(sim, ImageNumPixelRows, ImageNumPixelColumns, num
                         ST.append((k*numPixelRows*numPixelColumns + i*numPixelColumns + j,
                                    k2*numPixelRows*numPixelColumns + i*numPixelColumns + j))
 
-                for i2 in range(-V1PoolSize/2+1, V1PoolSize/2+1):      # Filter rows (extra +1 to insure get top of odd-numbered filter)
-                    for j2 in range(-V1PoolSize/2+1, V1PoolSize/2+1):  # Filter columns
+                for i2 in range(-V1PoolSize//2+1, V1PoolSize//2+1):      # Filter rows (extra +1 to insure get top of odd-numbered filter)
+                    for j2 in range(-V1PoolSize//2+1, V1PoolSize//2+1):  # Filter columns
 
-                        if V1PoolingFilters[k][i2+V1PoolSize/2][j2+V1PoolSize/2] > 0:
+                        if V1PoolingFilters[k][i2+V1PoolSize//2][j2+V1PoolSize//2] > 0:
                             if i+i2 >= 0 and i+i2 < ImageNumPixelRows and j+j2 >= 0 and j+j2 < ImageNumPixelColumns:
                                 ST2.append((k*numPixelRows*numPixelColumns + (i+i2)*numPixelColumns + (j+j2),
                                             k*numPixelRows*numPixelColumns + i*numPixelColumns + j))
                                 ST3.append((OppositeOrientationIndex[k]*numPixelRows*numPixelColumns + (i+i2)*numPixelColumns + (j+j2),
                                             k*numPixelRows*numPixelColumns + i*numPixelColumns + j))
 
-                        if V1PoolingConnections1[k][i2+V1PoolSize/2][j2+V1PoolSize/2] > 0:
+                        if V1PoolingConnections1[k][i2+V1PoolSize//2][j2+V1PoolSize//2] > 0:
                             if i+i2 >= 0 and i+i2 < ImageNumPixelRows and j+j2 >= 0 and j+j2 < ImageNumPixelColumns:
                                 ST4.append((k*numPixelRows*numPixelColumns + i*numPixelColumns + j,
                                             k*numPixelRows*numPixelColumns + (i+i2)*numPixelColumns + (j+j2)))
 
-                        if V1PoolingConnections2[k][i2+V1PoolSize/2][j2+V1PoolSize/2] > 0:
+                        if V1PoolingConnections2[k][i2+V1PoolSize//2][j2+V1PoolSize//2] > 0:
                             if i+i2 >= 0 and i+i2 < ImageNumPixelRows and j+j2 >= 0 and j+j2 < ImageNumPixelColumns:
                                 ST5.append((k*numPixelRows*numPixelColumns + i*numPixelColumns + j,
                                             k*numPixelRows*numPixelColumns + (i+i2)*numPixelColumns + (j+j2)))
@@ -318,10 +343,10 @@ def buildNetworkAndConnections(sim, ImageNumPixelRows, ImageNumPixelColumns, num
                     ST.append((h*numOrientations*numPixelRows*numPixelColumns + OppositeOrientationIndex[k]*numPixelRows*numPixelColumns + i*numPixelColumns + j,
                                h*numOrientations*numPixelRows*numPixelColumns + k*numPixelRows*numPixelColumns + i*numPixelColumns + j))
 
-                    for i2 in range(-V2PoolSize/2+1, V2PoolSize/2+1):      # Filter rows (extra +1 to insure get top of odd-numbered filter)
-                        for j2 in range(-V2PoolSize/2+1, V2PoolSize/2+1):  # Filter columns
+                    for i2 in range(-V2PoolSize//2+1, V2PoolSize//2+1):      # Filter rows (extra +1 to insure get top of odd-numbered filter)
+                        for j2 in range(-V2PoolSize//2+1, V2PoolSize//2+1):  # Filter columns
 
-                            if V2PoolingFilters[k][i2+V2PoolSize/2][j2+V2PoolSize/2] > 0:
+                            if V2PoolingFilters[k][i2+V2PoolSize//2][j2+V2PoolSize//2] > 0:
                                 if i+i2 >= 0 and i+i2 < ImageNumPixelRows and j+j2 >= 0 and j+j2 < ImageNumPixelColumns:
                                     ST2.append((h*numOrientations*numPixelRows*numPixelColumns + k*numPixelRows*numPixelColumns + (i+i2)*numPixelColumns + (j+j2),
                                                 h*numOrientations*numPixelRows*numPixelColumns + k*numPixelRows*numPixelColumns + i*numPixelColumns + j))
@@ -336,12 +361,12 @@ def buildNetworkAndConnections(sim, ImageNumPixelRows, ImageNumPixelColumns, num
                                                 ST4.append((h*numOrientations*numPixelRows*numPixelColumns + k2*numPixelRows*numPixelColumns + (i+i2)*numPixelColumns + (j+j2),
                                                             h*numOrientations*numPixelRows*numPixelColumns + k*numPixelRows*numPixelColumns + i*numPixelColumns + j))
 
-                            if V2PoolingConnections1[k][i2+V2PoolSize/2][j2+V2PoolSize/2] > 0:
+                            if V2PoolingConnections1[k][i2+V2PoolSize//2][j2+V2PoolSize//2] > 0:
                                 if i+i2 >= 0 and i+i2 < ImageNumPixelRows and j+j2 >= 0 and j+j2 < ImageNumPixelColumns:
                                     ST5.append((h*numOrientations*numPixelRows*numPixelColumns + k*numPixelRows*numPixelColumns + i*numPixelColumns + j,
                                                 h*numOrientations*numPixelRows*numPixelColumns + k*numPixelRows*numPixelColumns + (i+i2)*numPixelColumns + (j+j2)))
 
-                            if V2PoolingConnections2[k][i2+V2PoolSize/2][j2+V2PoolSize/2] > 0:
+                            if V2PoolingConnections2[k][i2+V2PoolSize//2][j2+V2PoolSize//2] > 0:
                                 if i+i2 >= 0 and i+i2 < ImageNumPixelRows and j+j2 >= 0 and j+j2 < ImageNumPixelColumns:
                                     ST6.append((h*numOrientations*numPixelRows*numPixelColumns + k*numPixelRows*numPixelColumns + i*numPixelColumns + j,
                                                 h*numOrientations*numPixelRows*numPixelColumns + k*numPixelRows*numPixelColumns + (i+i2)*numPixelColumns + (j+j2)))
@@ -358,7 +383,7 @@ def buildNetworkAndConnections(sim, ImageNumPixelRows, ImageNumPixelColumns, num
     sim.Projection(V2Layer23, V2Layer23Pool, MyConnector(ST2), sim.StaticSynapse(weight=connections['V2_ComplexExcite']))
     sim.Projection(V2Layer23, V2Layer23Pool, MyConnector(ST3), sim.StaticSynapse(weight=connections['V2_ComplexInhib']))
     synapseCount += (len(ST2) + len(ST3))
-    if len(ST4)>0:  # non-orthogonal inhibition
+    if len(ST4) > 0:  # non-orthogonal inhibition
         sim.Projection(V2Layer23, V2Layer23Pool, MyConnector(ST4), sim.StaticSynapse(weight=connections['V2_ComplexInhib2']))
         synapseCount += len(ST4)
 

@@ -1,7 +1,9 @@
 # NEST implementation of the LAMINART model of visual cortex.
 # NEST simulation time is in milliseconds
 
-import sys, numpy, random, matplotlib.pyplot as plt, setInput, pyNN.nest as sim
+import sys, numpy, random, matplotlib.pyplot as plt, setInput
+# import pyNN.nest as sim
+import pynn_genn as sim
 from LaminartWithSegmentationPyNN import buildNetworkAndConnections
 from images2gif import writeGif
 # from pyNN.utility import get_simulator
@@ -14,7 +16,7 @@ from images2gif import writeGif
 # How time goes
 dt           = 1.0     # (ms) time step for network updates
 stepDuration = 50.0    # (ms) time step for visual input and segmentation signal updates
-simTime      = 1000.0  # (ms)
+simTime      = 100.0  # (ms)
 nTimeSteps   = numpy.int(simTime/stepDuration)
 sloMoRate    = 4.0     # how much the GIFs are slowed vs real time, default is 4.0
 sim.setup(timestep=dt, min_delay=1.0, max_delay=10.0)  # delays in ms
@@ -22,7 +24,7 @@ sim.setup(timestep=dt, min_delay=1.0, max_delay=10.0)  # delays in ms
 # General parameters
 fileName = "squares 1"     # this would be removed if it is in the NRP
 input, ImageNumPixelRows, ImageNumPixelColumns = setInput.readAndCropBMP(fileName, onlyZerosAndOnes=0)
-print "Input image dimensions of " + fileName + ": [Rows, Columns] = " + str([ImageNumPixelRows,ImageNumPixelColumns])
+print("Input image dimensions of " + fileName + ": [Rows, Columns] = " + str([ImageNumPixelRows,ImageNumPixelColumns]))
 weightScale   = 1.0        # general weight for all connections between neurons
 constantInput = 0.5        # input given to the tonic interneuron layer and to the top-down activated segmentation neurons
 inputPoisson  = 0          # 1 for a poisson spike source input, 0 for a DC current input
@@ -210,7 +212,7 @@ for timeStep in range(nTimeSteps):
                 segmentationTargetLocationSD = minSD + rateSD*numpy.sqrt((segmentationTargetLocationX)**2 + segmentationTargetLocationY**2)
             segmentLocationX = int(round(random.gauss(ImageNumPixelColumns/2 - segmentationTargetLocationX, segmentationTargetLocationSD)))
             segmentLocationY = int(round(random.gauss(ImageNumPixelRows/2    - segmentationTargetLocationY, segmentationTargetLocationSD)))
-            print "Segmentation location [X, Y] = " + str([segmentLocationX,segmentLocationY])
+            print("Segmentation location [X, Y] = " + str([segmentLocationX,segmentLocationY]))
 
             # Define surface segmentation signals (gives local DC inputs to surface and boundary segmentation networks)
             if useSurfaceSegmentation:
